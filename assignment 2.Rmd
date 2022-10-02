@@ -1,0 +1,143 @@
+---
+title: "Assignment_2"
+output:
+  html_document: default
+  pdf_document: default
+date: "2022-09-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#Importing the Data and loading packages
+```{r}
+UniversalData <- read.csv("C:\\Users\\bucol\\Downloads\\UniversalBank.csv")
+library(caret)
+library(ISLR)
+library(class)
+library(dplyr)
+```
+**Creating Dummy Variables**
+To be honest, I couldn't find much info on the "dummy" package, so I'm using "FastDummies" instead. 
+```{r}
+library(fastDummies)
+DumUniversal <- dummy_cols(UniversalData, select_columns = 'Education') #This creates 3 new variables Education_1, Education_2, and Education_3.
+```
+
+**Removing ID, Zip and Education**
+First, it's important to look at a summary of the data.
+Then we create a new data set without ID and ZIP. 
+
+```{r}
+summary(DumUniversal)
+RemovedUniversalData <- select(DumUniversal,2:4,7,9:17)
+print(RemovedUniversalData)
+
+```
+**Normalizing the data**
+Because the knn model utilizes distance, it's important to normalize our data 
+so its not affected by the different scales of our variables. 
+```{r}
+PreUniversalData <- preProcess(RemovedUniversalData[, 1:13], method = c('range'))
+NewUniversalData <- predict(PreUniversalData, RemovedUniversalData[, 1:13]) 
+#Need to make the test case
+testcase <- data.frame(Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2, Education_1 = 0, Education_2 = 
+1, Education_3 = 0, Mortgage = 0, Securities.Account = 0, CD.Account= 0, Online = 1, Credit.Card = 1)
+print(testcase)
+#Now we normalize it
+pretestcase <- preProcess(testcase[, 1:13])
+NormTestCase <- predict(pretestcase, testcase[, 1:13])
+
+
+summary(NewUniversalData) #This is now our normalized data summary
+
+```
+
+
+**Now we will create our partitions.**
+
+```{r}
+set.seed(12)
+ValidationIndex = createDataPartition(NewUniversalData$Age, times = 1, p = .4, list = FALSE) #Creates index to select
+ValidationData = NewUniversalData[ValidationIndex,] #Our 40% for validation
+TrainData = NewUniversalData[-ValidationIndex,] #Our 60% for training
+Criteria = RemovedUniversalData$Personal.Loan[-ValidationIndex]
+summary(ValidationData)
+summary(TrainData)
+
+```
+**Let's do a k-NN model!**
+```{r}
+library(FNN)
+ 
+Kmod <- knn(train = TrainData[, 1:13], test = NormTestCase[,  1:13], cl = Criteria, k = 1, prob = TRUE)
+Kmod
+
+```
+This specifically tested the customer in part 1 using a k-value of 1.
+We can see the prediction returns a 0, which means that this customer does not accept the loan. 
+
+**Now we Hypertune with Validation**
+
+```{r}
+library(caret)
+tuning <- data.frame(k = seq(1,20,1), accuracy = rep(0,20))
+
+
+for(i in 1:20) {
+  PredKmod <- knn(train = TrainData[, 1:13], test = ValidationData[, 1:13], cl = Criteria, k = i)
+  
+  tuning[i,2] <- confusionMatrix(PredKmod,  as.factor(ValidationData[,1:13]$Personal.Loan))$overall[1]
+}
+tuning
+```
+To be honest, I'm not sure that that's right. Having all the ones seems wrong.
+Not sure why all the ones are there though. I'm going to pick 15 
+because its the first odd number that's not 1 and 
+I was reading that odds tend to be better as they can break the tie. 
+
+**Now we will test our validation data with k = 15**
+
+```{r}
+Q3Kmod <- knn(train = TrainData[, 1:13], test = ValidationData[,1:13], cl = Criteria, k= 15)
+
+```
+Now we get to the confusion matrix. 
+```{r}
+library(gmodels)
+CrossTable(x=RemovedUniversalData$Personal.Loan[ValidationIndex], Q3Kmod, prop.chisq = TRUE)
+```
+**Now we go back to our customer and classify them with k=15**
+```{r}
+Q4Kmod <- knn(train = TrainData[, 1:13], test = NormTestCase[,  1:13], cl = Criteria, k = 15, prob = TRUE)
+```
+**Now we get to repartition our data into three sets**
+Train: 50%, Validation: 30%, Test: 20%
+Since I normalized before partitioning, I can dive right into repartitioning. 
+```{r}
+set.seed(197)
+Q5TrainIndex <- createDataPartition(NewUniversalData$Age, times = 1, p = 0.5, list = FALSE)
+Q5TrainData <- NewUniversalData[Q5TrainIndex,] #This is out 50% Training index. 
+Q5ValProcess <- NewUniversalData[-Q5TrainIndex,] #This is not what our actual Validation set will be
+
+ValIndex <-createDataPartition(Q5ValProcess$Age, times = 1, p=0.6, list = FALSE)
+Q5ValidData <- Q5ValProcess[ValIndex, ] #Here's our validation data
+Q5TestData <- Q5ValProcess[-ValIndex, ] #Here's our test data
+
+```
+
+**Let's do the k-NN!**
+```{r}
+Criteria5 <- NewUniversalData$Personal.Loan[Q5TrainIndex]
+Q5PredMod <- knn(Q5TrainData, Q5ValidData, Criteria5, k=15, prob = FALSE)
+
+#Now we create the confusion matrix
+CrossTable(x=NewUniversalData$Personal.Loan[ValIndex], y=Q5PredMod, prop.chisq = FALSE)
+
+```
+We can see that the second confusion matrix has less observations in total due to 
+splitting the data into three sets as opposed to just two. We can also see that there 
+was more error in the one above. This is probably due to the fact that we tested 
+unique data in this model as opposed to using the same data for testing and validating like before. 
+
+
