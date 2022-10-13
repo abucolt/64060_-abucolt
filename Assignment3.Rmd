@@ -1,0 +1,111 @@
+---
+title: "Assignment_3"
+output: html_document
+date: "2022-10-06"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Importing the Data and loading packages**
+```{r}
+UniversalData <- read.csv("C:\\Users\\bucol\\Downloads\\UniversalBank.csv")
+library(caret)
+library(ISLR)
+library(class)
+library(readr)
+library(e1071)  
+```
+**Setting up Data**
+
+#selecting the three variables of interest, Online, Credit Card, and Personal Loan (and the ID)
+a3data <- select(UniversalData,1,10,13:14)
+#Making sure all three are categorical
+a3data$Personal.Loan <- as.factor(a3data$Personal.Loan)
+a3data$Online <- as.factor(a3data$Online)
+a3data$CreditCard <- as.factor(a3data$CreditCard)
+
+
+
+
+```{r}
+# We use as.factor command to convert Online, CreditCard and Personal.Loan variable
+# into categorical types.
+DF= UniversalData
+DF$Online_category='Not-Active' # customer with online = 0 is not an active user
+DF$Online_category[DF$Online>0]= 'Active' # customer with online = 1 (>0) is an active user
+DF$Online_category=as.factor(DF$Online_category) # this divides the online users into two categories: not-active and active
+DF$CreditCard=as.factor(DF$CreditCard)
+DF$Personal.Loan=as.factor(DF$Personal.Loan)
+View(DF)
+```
+
+Question A  We use the set seed command to set the random seed, and use 60% training and 40% validating Data for Partition.
+we use pivot table for the training data, online as column variable, creditcard as a row variable,
+and personal loan as a secondary row variable. The values inside the table convey the count.
+
+**Partitioning the data**
+```{r}
+set.seed(49)
+TrainIndex = createDataPartition(DF$Personal.Loan,times = 1, p = .6, list = FALSE)
+TrainData <- DF[TrainIndex,] #60% training set
+ValidData <- DF[-TrainIndex,] #40% validation set
+```
+
+**Creating pivot table**
+```{r}
+ mytable <- xtabs(~ Online_category+CreditCard+Personal.Loan, data=TrainData)
+ftable(mytable)
+
+
+table_CreditCard <- table(UniversalData$CreditCard)
+View(table_CreditCard)
+table_Online <- table(UniversalData$Online)
+View(table_Online)
+```
+Question B: We need to probability of a person accepting a loan given they are an active online user and have a credit card. There are 45 individuals that fall into that category. We need to divide this value by the total number of people with people with an active online account and credit card, thus, 45/(488+45)=0.0844
+
+**More pivot tables for Question C**
+```{r}
+mytableC1 <- xtabs(~ Online_category+Personal.Loan, data=TrainData)
+ftable(mytableC1) #This is the Online vs Loan
+
+mytableC2 <- xtabs(~CreditCard+Personal.Loan, data=TrainData)
+ftable(mytableC2) #This is CreditCard vs Loan
+```
+#D. Compute the following quantities [P(A | B) means “the probability ofA given B”]:  
+i. P(CC = 1 | Loan = 1) **80/(208+80) = 0.276**
+ii. P(Online = 1 | Loan = 1) **183 /(183+105) = 0.635** 
+iii. P(Loan = 1) (the proportion of loan acceptors)  **288/3000=0.096**
+iv. P(CC = 1 | Loan = 0) **802/(1910+802)= 0.296**
+v. P(Online = 1 | Loan = 0) **1629/(1629+1083)=0.601**
+vi. P(Loan = 0) **2712/3000=.904**
+
+#E. Use the quantities computed above to compute the naive Bayes probability P(Loan = 1 | CC = 1, Online = 1). 
+              (80/288)(183/288)(288/3000)                        0.0169
+------------------------------------------------------------ = ----------- = 0.0954
+(80/288)(183/288)(288/3000)+(802/2712)(1629/2712)(2712/3000)     0.1775
+
+#F.Compare this value with the one obtained from the pivot table in (B). Which is a more accurate estimate? 
+In part B, we recieved the probability 0.0844. With the Naive Bayes calculation we recieved 0.0954 which is quite a bit higher. While the method in part B is more accurate, it can only be calculated with the exact same data, whereas the naive bayes function can predict given a different set. 
+
+#G. 
+Which of the entries in this table are needed for computing P(Loan = 1 | CC = 1, Online = 1)? Run naive Bayes on the data. Examine the model output on training data, and find the entry 
+that corresponds to P(Loan = 1 | CC = 1, Online = 1). Compare this to the number you 
+obtained in (E). 
+
+**Running naive bayes**
+
+```{r}
+nb_model <-naiveBayes(Personal.Loan~Online+CreditCard,data = TrainData)
+nb_model
+#This gives us our conditional probabilities. We need the .2778 value, the .6354 value, and the .096 value for the numerator of the naive bayes calculation. The demoninator of this calculation will utilize .296, .601, and .904. 
+```
+
+**Calculating probability**
+(.278)(.635)(.096)/(.278)(.635)(.096)+(.296)(.601)(.904) = .0953. 
+We can see that these two values are the same and only differ due to rounding. 
+
+
+
