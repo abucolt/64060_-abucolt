@@ -1,0 +1,123 @@
+---
+title: "Assignment_5"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+date: "2022-11-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Inputting and Setting up Data/Packages
+
+```{r}
+mydata <- read.csv("C:\\Users\\bucol\\Downloads\\Cereals.csv")
+library(tidyverse)  # data manipulation
+library(factoextra) # clustering algorithms & visualization
+library(cluster)
+library(caret)
+set.seed(49)
+
+
+summary(mydata)
+```
+#We see there is some missing data that needs to be removed
+```{r}
+cerealscomplete <- na.omit(mydata)
+cerealscomplete #this has removed the cereals with incomplete data
+
+#Now we need to make the cereal names the row names
+row.names(cerealscomplete) <- cerealscomplete[,1]
+#now we must remove the names from the dataset
+cerealscomplete <- cerealscomplete[,-1]
+
+#I'm going to remove the first two columns because they're categorical. 
+cerealscomplete <- cerealscomplete[,-1]
+cerealscomplete <- cerealscomplete[,-1]
+cerealscomplete
+
+```
+
+#Since we are dealing with very different variables, we must normalize the data
+```{r}
+normcereal <- scale(cerealscomplete)
+summary(normcereal) #now our data is scaled.
+```
+
+#Now we will use Agnes to compare single, complete, and average linkage and Ward. 
+
+```{r}
+set.seed(17)
+hc_single <- agnes(normcereal, method = "single")
+hc_complete <- agnes(normcereal, method = "complete")
+hc_average <- agnes(normcereal, method = "average")
+hc_ward <- agnes(normcereal, method = "ward")
+
+#The we compare agglomerative coefficients
+print(hc_single$ac) #0.6067859
+print(hc_complete$ac) #0.8353712
+print(hc_average$ac) #0.7766075
+print(hc_ward$ac) #0.9046042  (this one is the highest)
+
+```
+
+#Based on the agglomerative coefficients, the ward method is the best. 
+#we will now plot the dendrogram
+```{r}
+plot_ward <- pltree(hc_ward, cex = 0.6, hang = -1)
+plot_ward
+```
+#Looking at the dendrogram, I think 6 clusters seems pretty good. 
+```{r}
+pltree(hc_ward, cex = 0.6, hang = -1)
+rect.hclust(hc_ward,k=6,border = 1:6)
+                               
+```
+#Now we check their stability. 
+#First, we partition. 
+```{r}
+set.seed(17)
+
+#Creating partition set of 50%
+partset <- createDataPartition(normcereal[,"calories"], p=0.5, list = FALSE)
+CerA <- normcereal[partset,] #this is the first 50%
+CerB <- normcereal[-partset,]#second set
+
+#Now we'll run the AGNES to both sets. 
+a_ward <-agnes(CerA, method = "ward")
+print(a_ward$ac) #0.8498682
+b_ward <-agnes(CerB, method = "ward")
+print(b_ward$ac) #0.8383771
+#we can note that the agglomerative coefficients are very similar. 
+
+plot_a <- pltree(a_ward, cex=0.6, hang = -1)
+plot_b <- pltree(b_ward, cex=0.6, hang = -1)
+```
+If I compare these partitioned dendrograms to the original, we can see that most cereals remain in the same cluster. 
+This tells us that it is pretty stable. 
+
+#Senario: Find cluster of healthy cereal. 
+Okay, since we want healthy cereals we should be considering the nutrional items in this data set and their importance. 
+We probably are looking at some that should be high and some that would be better low. 
+high: protein, fiber, potassium, vitamins, and honestly rating since we want the kids to actually eat it.  
+low: fat, sodium
+now calories and carbs are also important, but I dont think we specifically want them high or low since it needs to be
+balanced between healthy and filling. 
+For the purpose of this analysis, I would to fet rid of shelf.  
+To be honest, looking at this data, its a bit unbalanced because of the serving sizes which I assume is what cups is. 
+If we really wanted to consider these on an equal playing field, we should probably make a ratio of the nutritional aspect
+per its cups so that all the nutritional data is scaled similarly. ie, a cereal doesn't look healthier because its just less
+food. 
+Also, due to the importance of scale here, you would want to manipulate your data depending on health benefit importance, 
+so normalizing the data would not be the first option since we do care about the actual values of the nutritional facts. 
+
+
+
+```
+
+```
+
+
