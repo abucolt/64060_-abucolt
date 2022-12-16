@@ -1,0 +1,137 @@
+---
+title: "Final Exam"
+output:
+  html_document: default
+  pdf_document: default
+date: "2022-12-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Final Exam
+Data Retrieved from Kaggle, but originally from FiveThirtyEight
+https://www.kaggle.com/datasets/thedevastator/uncovering-insights-to-college-majors-and-their?select=all-ages.csv
+
+This data set provides information on college majors and their employability, popularity, and salary. 
+
+#Inputting and Setting up Data/Packages
+z   Q7 
+```{r}
+mydata <- read.csv("C:\\Users\\bucol\\Desktop\\recent-grads.csv")
+library(tidyverse)  # data manipulation
+library(factoextra) # clustering algorithms & visualization
+library(ISLR)
+library(cluster)
+library(flexclust)
+
+#First I will modifying the data to turn the variables of interest into rates that are all positive in direction. We will be turning everything into a rate instead of normalizing. 
+
+newdata <- mydata
+newdata$Employmen_rate <- mydata$Employed / mydata$Total # This is the postive version of unemployment rate
+newdata$College_Jobs_Rate <- mydata$College_jobs / mydata$Total #This is the rate of college jobs
+newdata$NonLow_Wage_jobs_Rate <- (mydata$Total - mydata$Low_wage_jobs) / mydata$Total #This is the rate of non low jwage 
+newdata$Median <- mydata$Median / 110000 #this turns the median salary into a rate where we're using the highest salary as the divisor
+
+#Then I will be removing several variables due to redundancy. 
+#to do this I will create a list of variables. 
+
+myvars <- c("Employmen_rate","Median","College_Jobs_Rate", "NonLow_Wage_jobs_Rate") 
+#This is the selection of variables I will use to provide some basic information about recent graduates. 
+
+majordata <- newdata[,myvars] #This is now selecting only those variables. 
+summary(majordata) 
+
+
+```
+
+For this analysis we will consider the variables importance as seen below:
+
+Highest: College Job Rate (This shows the rate of grads who got a job that uses their college level education)
+Medium: Non low wage jobs and Median 
+Lowest: Employment rate
+
+Due to this, we will weight each value as shown below:
+
+College Jobs Rate: 3
+Median: 1.5
+NonLow Jobs Rate: 1.5
+Employment Rate: 1
+
+Instead of normalizing, we have created rates for each value. Now we will weight them. 
+
+```{r}
+weighteddata <- majordata
+weighteddata$Median <- majordata$Median *1.5
+weighteddata$NonLow_Wage_jobs_Rate <- majordata$NonLow_Wage_jobs_Rate *1.5
+weighteddata$College_Jobs_Rate <- majordata$College_Jobs_Rate *3
+
+distancedata <- get_dist(weighteddata)
+fviz_dist(distancedata)
+fviz_nbclust(weighteddata, kmeans, method = "wss") 
+#It seems our elbow point is 2, but its sort of hard to tell. 
+fviz_nbclust(weighteddata, kmeans, method = "silhouette")
+#This method suggests 2 clusters.
+gap_stat <- clusGap(weighteddata, FUN = kmeans, nstart = 25,
+                    K.max = 10, B = 50)
+fviz_gap_stat(gap_stat)
+#this method suggests 6 clusters. 
+```
+#Now we cluster. 
+
+```{r}
+set.seed(17)
+cluster2 <- kmeans(weighteddata, centers = 2, nstart = 25)
+
+#Let's Visualize
+cluster2$centers
+fviz_cluster(cluster2, data= weighteddata) 
+cluster2$size
+
+
+#Visualizing this, we can see we have two cluster, but theres not a ton of information was can draw from this since the groups are so large. Lets break it up a bit more like the gap stat suggested. 
+
+cluster6 <- kmeans(weighteddata, centers = 6, nstart = 25)
+
+#Let's Visualize
+cluster6$centers
+fviz_cluster(cluster6, data= weighteddata) 
+cluster6$size
+
+```
+Here we can see the first cluster has two groups. 
+Group 1 has 66 majors
+Group 2 has 107. 
+
+Here we can see the second cluster has six groups. 
+Group 1 has 21 majors
+Group 2 has 16
+Group 3 has 56 
+Group 4 has 14
+Group 5 has 31
+Group 6 has 35
+
+Due to the nature of the problem, I will be utilizing the 6 clusters for the analysis. 
+
+```{r}
+cluster6dataA <- cluster6$cluster
+cluster6dataB <- cbind(newdata, cluster6dataA) #this adds our kmeans clusters for 6 clusters to the dataset
+c2vars <- c("Major","Major_category", "Total","ShareWomen", "Employmen_rate","Median","College_Jobs_Rate", "NonLow_Wage_jobs_Rate","cluster6dataA")
+cluster6data <- cluster6dataB[,c2vars]
+
+Group1 <- subset(cluster6data, cluster6dataA ==1) #this returns just the majors in the 1st cluster
+Group2 <- subset(cluster6data, cluster6dataA == 2) #this returns just the majors in the 2nd cluster
+Group3 <- subset(cluster6data, cluster6dataA == 3) #this returns just the majors in the 3rd cluster
+Group4 <- subset(cluster6data, cluster6dataA == 4) #this returns just the majors in the 4th cluster
+Group5 <- subset(cluster6data, cluster6dataA == 5) #this returns just the majors in the 5th cluster
+Group6 <- subset(cluster6data, cluster6dataA == 6) #this returns just the majors in the 6th cluster
+
+Group6
+```
+
+
+
+
+
+
